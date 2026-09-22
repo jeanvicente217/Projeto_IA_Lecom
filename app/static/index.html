@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>N1 Proativo - Teste de sugestões</title>
+<style>
+  :root { --bg:#f4f6f8; --card:#fff; --line:#dde3ea; --txt:#1f2933; --muted:#64748b; --accent:#0b6bcb; --ok:#15803d; --warn:#b45309; --bad:#b91c1c; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family: system-ui, Segoe UI, Roboto, sans-serif; background:var(--bg); color:var(--txt); }
+  header { background:#0f2a44; color:#fff; padding:14px 24px; display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+  header h1 { font-size:18px; margin:0; }
+  header .stats { font-size:13px; opacity:.9; }
+  header .dir { margin-left:auto; display:flex; gap:8px; align-items:center; }
+  main { max-width:1200px; margin:20px auto; padding:0 16px; display:grid; grid-template-columns: 400px 1fr; gap:20px; }
+  @media (max-width: 900px) { main { grid-template-columns:1fr; } }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:16px; }
+  .card h2 { font-size:15px; margin:0 0 10px; color:#0f2a44; }
+  label { display:block; font-size:13px; color:var(--muted); margin:10px 0 4px; }
+  input, textarea, select { width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:6px; font:inherit; }
+  textarea { min-height:120px; resize:vertical; }
+  button { background:var(--accent); color:#fff; border:0; padding:9px 16px; border-radius:6px; font:inherit; cursor:pointer; }
+  button.sec { background:#e2e8f0; color:var(--txt); }
+  button:disabled { opacity:.5; cursor:wait; }
+  .row { display:flex; gap:10px; align-items:end; }
+  .row > * { flex:1; }
+  .badge { display:inline-block; padding:3px 9px; border-radius:999px; font-size:12px; background:#e2e8f0; margin:2px 4px 2px 0; }
+  .badge.ok { background:#dcfce7; color:var(--ok); } .badge.warn { background:#fef3c7; color:var(--warn); } .badge.bad { background:#fee2e2; color:var(--bad); }
+  .kv { display:grid; grid-template-columns: 160px 1fr; gap:6px 12px; font-size:14px; }
+  .kv b { color:var(--muted); font-weight:500; }
+  ul { margin:6px 0 0 18px; padding:0; } li { margin:4px 0; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--muted); font-weight:500; }
+  tr.sim:hover { background:#f8fafc; cursor:pointer; }
+  .det { background:#f8fafc; font-size:12px; white-space:pre-wrap; }
+  .meter { height:6px; background:#e2e8f0; border-radius:3px; overflow:hidden; } .meter i { display:block; height:100%; background:var(--accent); }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; overflow:auto; font-size:12px; max-height:420px; }
+  .err { background:#fee2e2; color:var(--bad); padding:10px; border-radius:6px; font-size:13px; }
+  .muted { color:var(--muted); font-size:13px; }
+  .ex { font-size:12px; margin-top:8px; } .ex a { color:var(--accent); cursor:pointer; margin-right:8px; text-decoration:underline; }
+  .cliente { background:#ecfdf5; border:1px solid #a7f3d0; border-radius:8px; padding:14px; white-space:pre-wrap; font-size:14px; line-height:1.5; }
+  details summary { cursor:pointer; color:var(--muted); font-size:13px; }
+  /* login */
+  #login { max-width:380px; margin:12vh auto; }
+  #app[hidden] { display:none; }
+</style>
+</head>
+<body>
+
+<section id="login">
+  <div class="card">
+    <h2>N1 Proativo · entrar</h2>
+    <label>Usuário</label><input id="usuario" autocomplete="username">
+    <label>Senha</label><input id="senha" type="password" autocomplete="current-password">
+    <div style="margin-top:14px"><button id="btnLogin">Entrar</button></div>
+    <div id="loginErro" class="err" style="margin-top:12px" hidden></div>
+  </div>
+</section>
+
+<div id="app" hidden>
+<header>
+  <h1>N1 Proativo · sugestões para chamados</h1>
+  <span class="stats" id="stats">carregando…</span>
+  <span class="dir">
+    <span class="muted" id="quem" style="color:#cbd5e1"></span>
+    <button class="sec" id="btnIngest" title="Indexa os chamados raspados em data/raw">Reindexar</button>
+    <button class="sec" id="btnSair">Sair</button>
+  </span>
+</header>
+
+<main>
+  <section>
+    <div class="card">
+      <h2>Chamado que está sendo aberto</h2>
+      <label>Assunto *</label>
+      <input id="assunto" placeholder="Ex.: Erro ao abrir subprocesso">
+      <label>Descrição</label>
+      <textarea id="descricao" placeholder="O que o cliente escreveu no chamado"></textarea>
+      <div class="row">
+        <div><label>Produto (opcional, filtra a busca)</label><select id="produto"><option value="">(qualquer)</option></select></div>
+      </div>
+      <div class="row">
+        <div><label>Cliente</label><input id="cliente" list="clientes" placeholder="Ex.: Sicoob Credimogiana"><datalist id="clientes"></datalist></div>
+        <div style="flex:0 0 90px"><label>Top K</label><input id="topk" type="number" min="1" max="15" value="6"></div>
+      </div>
+
+      <details style="margin-top:12px">
+        <summary>Ajustar o prompt desta chamada</summary>
+        <label>Instruções adicionais (somadas ao prompt padrão)</label>
+        <textarea id="instrucoes" style="min-height:90px"
+          placeholder="Ex.: escreva a mensagem ao cliente em no máximo 3 linhas e sempre peça o número da solicitação."></textarea>
+        <label>Prompt de sistema completo (substitui o padrão)</label>
+        <textarea id="promptSistema" style="min-height:90px"
+          placeholder="Deixe vazio para usar o prompt padrão. As regras de fundamentação das dicas continuam valendo."></textarea>
+      </details>
+
+      <div style="margin-top:14px; display:flex; gap:10px">
+        <button id="btnSugerir">Sugerir</button>
+        <button class="sec" id="btnLimpar">Limpar</button>
+      </div>
+      <div class="ex">Exemplos:
+        <a data-a="Erro ao abrir subprocesso" data-d="Ao clicar em avançar a etapa, o subprocesso não abre e aparece uma tela em branco. Acontece em produção desde ontem.">subprocesso</a>
+        <a data-a="Problemas com a conexão com o Robô" data-d="O robô parou de executar as baixas hoje de manhã, na tela aparece erro de conexão.">robô</a>
+        <a data-a="Instabilidades constantes na Lecom" data-d="A plataforma está lenta e caindo várias vezes ao dia para todos os usuários.">instabilidade</a>
+        <a data-a="Não aparecendo o documento anexado" data-d="Anexei o documento na etapa de solicitação e ele não aparece para o aprovador.">anexo</a>
+      </div>
+      <div id="tempo" class="muted" style="margin-top:10px"></div>
+    </div>
+  </section>
+
+  <section id="resultado">
+    <div class="card muted">Preencha o chamado e clique em <b>Sugerir</b>.</div>
+  </section>
+</main>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+// ---- sessão -------------------------------------------------------------
+const TOKEN = 'n1p_token';
+const getToken = () => sessionStorage.getItem(TOKEN);
+const setToken = (t) => t ? sessionStorage.setItem(TOKEN, t) : sessionStorage.removeItem(TOKEN);
+
+async function api(url, opcoes = {}) {
+  const cfg = { ...opcoes, headers: { ...(opcoes.headers || {}), 'Authorization': 'Bearer ' + getToken() } };
+  if (cfg.body) cfg.headers['Content-Type'] = 'application/json';
+  const r = await fetch(url, cfg);
+  if (r.status === 401) { sair(); throw new Error('Sessão expirada. Entre novamente.'); }
+  return r;
+}
+
+async function entrar() {
+  const erro = $('loginErro');
+  erro.hidden = true;
+  $('btnLogin').disabled = true;
+  try {
+    const r = await fetch('/auth/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: $('usuario').value.trim(), password: $('senha').value }),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || 'Falha no login');
+    setToken(d.access_token);
+    $('senha').value = '';
+    await iniciar();
+  } catch (e) {
+    erro.textContent = e.message; erro.hidden = false;
+  } finally { $('btnLogin').disabled = false; }
+}
+
+function sair() {
+  setToken(null);
+  $('app').hidden = true;
+  $('login').hidden = false;
+}
+
+async function iniciar() {
+  const r = await api('/auth/me');
+  if (!r.ok) return sair();
+  const eu = await r.json();
+  $('quem').textContent = eu.username + (eu.is_admin ? ' (admin)' : '');
+  $('btnIngest').hidden = !eu.is_admin;
+  $('login').hidden = true;
+  $('app').hidden = false;
+  carregarStats();
+}
+
+// ---- dados --------------------------------------------------------------
+async function carregarStats() {
+  try {
+    const r = await api('/stats'); const s = await r.json();
+    const u = s.ultima_ingestao;
+    $('stats').textContent = `${s.total_indexado} chamados indexados · última ingestão: ${u ? u.quando.replace('T',' ') : 'nunca'} · ${s.modelo_chat}`;
+    const sel = $('produto'); sel.innerHTML = '<option value="">(qualquer)</option>';
+    (s.valores.produto || []).forEach(p => { const o = document.createElement('option'); o.value = p; o.textContent = p; sel.appendChild(o); });
+    const dl = $('clientes'); dl.innerHTML = '';
+    (s.valores.cliente || []).forEach(c => { const o = document.createElement('option'); o.value = c; dl.appendChild(o); });
+  } catch (e) { $('stats').textContent = 'não foi possível carregar /stats'; }
+}
+
+function badgeRec(r) {
+  const map = { abrir_chamado: ['warn','Abrir chamado'], tentar_dica_antes: ['ok','Tentar dica antes de abrir'], possivel_duplicado: ['bad','Possível duplicado'] };
+  const [cls, txt] = map[r] || ['', r];
+  return `<span class="badge ${cls}">${esc(txt)}</span>`;
+}
+
+function render(res) {
+  const c = res.classificacao;
+  const pct = Math.round((c.confianca || 0) * 100);
+  const dicas = res.dicas?.length ? `<ul>${res.dicas.map(d => `<li>${esc(d)}</li>`).join('')}</ul>` : '<span class="muted">Nenhuma dica fundamentada no histórico (nenhum similar com resposta do analista).</span>';
+  const falt = res.informacoes_faltantes?.length ? `<ul>${res.informacoes_faltantes.map(d => `<li>${esc(d)}</li>`).join('')}</ul>` : '<span class="muted">Nada a perguntar.</span>';
+  const sims = res.chamados_similares || [];
+  const linhas = sims.map((s, i) => `
+    <tr class="sim" data-i="${i}">
+      <td title="${s.origem === 'historico' ? 'id do formulário' : 'nº do processo Lecom'}">${s.origem === 'historico' ? 'H' : ''}${s.processo}</td>
+      <td>${esc(s.assunto)}</td>
+      <td><div class="meter"><i style="width:${Math.round(s.similaridade*100)}%"></i></div><span class="muted">${(s.similaridade*100).toFixed(0)}%</span></td>
+      <td>${esc(s.produto)}</td><td>${esc(s.area)}</td><td>${esc(s.cliente)}</td><td>${esc(s.status)}</td>
+      <td>${s.tem_resolucao ? '✅' : '—'}</td>
+    </tr>
+    <tr class="det" hidden id="det${i}"><td colspan="8">${s.descricao_cliente ? '<b>Descrição do cliente:</b>\n' + esc(s.descricao_cliente) + '\n\n' : ''}${s.resposta_analista ? '<b>Atendimento:</b>\n' + esc(s.resposta_analista) : '<span class="muted">sem resposta do analista registrada</span>'}</td></tr>`).join('');
+
+  $('resultado').innerHTML = `
+    <div class="card">
+      <h2>Mensagem para o cliente ${badgeRec(res.recomendacao)}</h2>
+      <div class="cliente">${esc(res.mensagem_para_cliente || '(vazio)')}</div>
+      <p class="muted" style="margin:8px 0 0">É este texto que vai aparecer no processo, antes de o cliente concluir a abertura.</p>
+    </div>
+    <div class="card">
+      <h2>Classificação</h2>
+      <div class="kv">
+        <b>Produto</b><span>${esc(c.produto)}</span>
+        <b>Tipo</b><span>${esc(c.tipo_chamado)}</span>
+        <b>Área sugerida</b><span>${esc(c.area_sugerida)}</span>
+        <b>Criticidade</b><span>${esc(c.criticidade_sugerida)}</span>
+        <b>Confiança</b><span><div class="meter" style="max-width:220px;display:inline-block;width:220px;vertical-align:middle"><i style="width:${pct}%"></i></div> ${pct}%</span>
+      </div>
+      <p class="muted" style="margin:10px 0 0">${esc(res.justificativa)}</p>
+    </div>
+    <div class="card"><h2>Dicas (base da mensagem)</h2>${dicas}</div>
+    <div class="card"><h2>Resumo para o N1</h2><p style="margin:0">${esc(res.resumo_para_n1)}</p></div>
+    <div class="card"><h2>Informações faltantes</h2>${falt}</div>
+    <div class="card">
+      <h2>Chamados similares (${sims.length})</h2>
+      <div style="overflow-x:auto"><table>
+        <thead><tr><th>#</th><th>Assunto</th><th>Similaridade</th><th>Produto</th><th>Área</th><th>Cliente</th><th>Status</th><th>Resolução</th></tr></thead>
+        <tbody>${linhas || '<tr><td colspan="8" class="muted">nenhum</td></tr>'}</tbody>
+      </table></div>
+      <p class="muted">Clique numa linha para ver descrição e atendimento. Prefixo <b>H</b> = id do formulário, não é o nº do processo Lecom.</p>
+    </div>
+    <div class="card"><h2>JSON bruto <button class="sec" id="btnJson" style="padding:4px 10px;font-size:12px">mostrar</button></h2><pre id="json" hidden>${esc(JSON.stringify(res, null, 2))}</pre></div>`;
+
+  document.querySelectorAll('tr.sim').forEach(tr => tr.addEventListener('click', () => { const d = $('det' + tr.dataset.i); d.hidden = !d.hidden; }));
+  $('btnJson').addEventListener('click', () => { const p = $('json'); p.hidden = !p.hidden; $('btnJson').textContent = p.hidden ? 'mostrar' : 'ocultar'; });
+}
+
+async function sugerir() {
+  const body = {
+    assunto: $('assunto').value.trim(),
+    descricao: $('descricao').value.trim() || null,
+    produto: $('produto').value || null,
+    cliente: $('cliente').value.trim() || null,
+    top_k: parseInt($('topk').value) || 6,
+    instrucoes_extras: $('instrucoes').value.trim() || null,
+    prompt_sistema: $('promptSistema').value.trim() || null,
+  };
+  if (body.assunto.length < 3) { alert('Informe o assunto.'); return; }
+  $('btnSugerir').disabled = true; $('tempo').textContent = 'consultando…';
+  const t0 = performance.now();
+  try {
+    const r = await api('/sugerir', { method:'POST', body: JSON.stringify(body) });
+    const data = await r.json();
+    if (!r.ok) { $('resultado').innerHTML = `<div class="card err">${esc(data.detail || JSON.stringify(data))}</div>`; return; }
+    render(data);
+  } catch (e) {
+    $('resultado').innerHTML = `<div class="card err">${esc(e.message)}</div>`;
+  } finally {
+    $('btnSugerir').disabled = false;
+    $('tempo').textContent = `tempo de resposta: ${((performance.now()-t0)/1000).toFixed(1)}s`;
+  }
+}
+
+async function reindexar() {
+  if (!confirm('Indexar os chamados raspados em data/raw? Só os novos ou alterados são embedados.')) return;
+  $('btnIngest').disabled = true; $('btnIngest').textContent = 'indexando…';
+  try {
+    const r = await api('/ingest', { method:'POST', body:'{}' });
+    const d = await r.json();
+    alert(r.ok ? `Fontes: ${d.arquivo}\nLidos: ${d.lidos}\nNovos: ${d.novos}\nAtualizados: ${d.atualizados}\nSem alteração: ${d.ignorados}\nTotal indexado: ${d.total_indexado}` : (d.detail || JSON.stringify(d)));
+    carregarStats();
+  } catch (e) { alert(e.message); }
+  finally { $('btnIngest').disabled = false; $('btnIngest').textContent = 'Reindexar'; }
+}
+
+$('btnLogin').addEventListener('click', entrar);
+$('senha').addEventListener('keydown', e => { if (e.key === 'Enter') entrar(); });
+$('btnSair').addEventListener('click', sair);
+$('btnSugerir').addEventListener('click', sugerir);
+$('btnLimpar').addEventListener('click', () => { ['assunto','descricao','cliente','instrucoes','promptSistema'].forEach(i => $(i).value=''); $('produto').value=''; });
+$('btnIngest').addEventListener('click', reindexar);
+document.querySelectorAll('.ex a').forEach(a => a.addEventListener('click', () => { $('assunto').value = a.dataset.a; $('descricao').value = a.dataset.d; }));
+$('assunto').addEventListener('keydown', e => { if (e.key === 'Enter') sugerir(); });
+
+if (getToken()) iniciar().catch(sair); else sair();
+</script>
+</body>
+</html>

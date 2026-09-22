@@ -1,0 +1,10 @@
+services:
+  n1-proativo:
+    build: .
+    container_name: n1-proativo
+    env_file: .env
+    ports:
+      - "${PORT:-8000}:8000"
+    volumes:
+      - ./data:/srv/data
+    restart: unless-stopped

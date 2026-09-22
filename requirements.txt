@@ -1,0 +1,16 @@
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+openai>=1.55.0
+chromadb>=1.0.0
+pandas>=2.2.0
+openpyxl>=3.1.0
+pydantic>=2.10.0
+pydantic-settings>=2.6.0
+python-dotenv>=1.0.0
+httpx>=0.27.0
+pytest>=8.0.0
+# Segurança: JWT, hash de senha e validação de e-mail/campos
+python-jose[cryptography]>=3.3.0
+bcrypt>=4.0.0
+# RPA de raspagem do workspace Lecom (requer: python -m playwright install chromium)
+playwright>=1.48.0

@@ -1,0 +1,32 @@
+# Produção: escuta apenas em 127.0.0.1:8001 (o Nginx é quem fica exposto).
+# A porta 8000 fica livre para a API OCR, que já roda na mesma VM.
+services:
+  n1-proativo:
+    build: .
+    image: n1-proativo:latest
+    container_name: n1-proativo
+    env_file: .env
+    environment:
+      PRODUCAO: "true"
+    ports:
+      - "127.0.0.1:8001:8000"
+    volumes:
+      - ./data:/srv/data
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
