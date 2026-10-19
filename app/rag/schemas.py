@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Literal
+from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
@@ -47,10 +48,12 @@ Recomendacao = Literal["abrir_chamado", "tentar_dica_antes", "possivel_duplicado
 class SaidaModelo(BaseModel):
     """Parte da resposta gerada pelo modelo de linguagem (structured output)."""
     classificacao: Classificacao
-    dicas: list[str] = Field(default_factory=list)
+    dicas: list[str] = Field(default_factory=list,
+                             description="Orientações para o cliente; nunca citam nº de chamado")
     mensagem_para_cliente: str = Field(
         "", description="Texto pronto para exibir ao cliente no processo, antes de ele abrir o "
-                        "chamado. Sempre preenchido, mesmo quando não há dicas.")
+                        "chamado. Sempre preenchido, mesmo quando não há dicas. Nunca cita "
+                        "nº de chamado (são internos).")
     resumo_para_n1: str
     informacoes_faltantes: list[str] = Field(default_factory=list)
     recomendacao: Recomendacao
@@ -78,11 +81,28 @@ class ChamadoSimilar(BaseModel):
 
 
 class SugestaoResponse(SaidaModelo):
+    id_sugestao: str = Field(
+        default_factory=lambda: uuid4().hex,
+        description="Identificador desta resposta; devolva-o em POST /feedback")
     chamados_similares: list[ChamadoSimilar]
     modelo: str
     consulta: str
     prompt_customizado: bool = Field(
         False, description="Indica que a requisição alterou o prompt padrão")
+
+
+class FeedbackRequest(BaseModel):
+    id_sugestao: str = Field(..., min_length=8, max_length=64,
+                             description="O id_sugestao devolvido pelo /sugerir")
+    util: bool = Field(..., description="A resposta da IA ajudou o cliente?")
+    comentario: str | None = Field(None, max_length=1000,
+                                   description="Opcional: o que faltou ou o que ajudou")
+
+
+class FeedbackResponse(BaseModel):
+    id_sugestao: str
+    util: bool
+    registrado: bool = True
 
 
 class IngestRequest(BaseModel):

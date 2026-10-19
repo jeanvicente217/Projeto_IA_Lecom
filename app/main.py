@@ -1,4 +1,5 @@
 import logging
+import threading
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -8,7 +9,9 @@ from fastapi.responses import FileResponse
 
 from app.auth.router import router as auth_router
 from app.config import get_settings
+from app.rag import feedback as feedback_repo
 from app.rag.router import router as rag_router
+from app.rag.service import aquecer
 from app.security import LimiteTamanhoMiddleware, SecurityHeadersMiddleware
 from app.users.repository import preparar_banco
 from app.users.router import router as users_router
@@ -65,8 +68,11 @@ def preparar() -> None:
     preparar_banco(settings.db_path, settings.admin_username, settings.admin_password,
                    settings.default_rate_limit_per_hour)
     whatsapp_repo.init_db(settings.db_path)
+    feedback_repo.init_db(settings.db_path)
     if not settings.admin_password:
         log.warning("ADMIN_PASSWORD vazio: nenhum administrador foi criado automaticamente")
+    # em segundo plano: a API já atende enquanto conexões e caches são preparados
+    threading.Thread(target=aquecer, name="aquecimento", daemon=True).start()
     log.info("API pronta (produção=%s, docs=%s, tela=%s)",
              settings.producao, settings.docs_habilitado, settings.tela_habilitada)
 

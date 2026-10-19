@@ -160,6 +160,8 @@ A chave da OpenAI fica só no servidor. Quem consome a API nunca a vê.
 | GET | `/auth/me` | autenticado | Dados do usuário e prefixo da API key ativa |
 | POST/DELETE | `/auth/api-key` | autenticado | Gera ou revoga a própria API key |
 | POST | `/sugerir` | autenticado | Recebe o chamado e devolve classificação, dicas e mensagem ao cliente |
+| POST | `/feedback` | autenticado | Informa se a resposta de um `/sugerir` foi útil |
+| GET | `/feedback/relatorio?dias=30` | admin | Taxa de respostas úteis e últimos comentários negativos |
 | GET | `/stats` | autenticado | Total indexado, última ingestão, valores distintos |
 | POST | `/ingest` | admin | Reindexa. Corpo: `{"com_planilhas": false, "limpar": false, "forcar": false}` |
 | GET/POST | `/usuarios` | admin | Lista e cria clientes da API |
@@ -199,9 +201,10 @@ Resposta (resumida):
 ```json
 {
   "classificacao": {"produto": "NxPro (Plataforma Lecom)", "tipo_chamado": "Informe de erro", "area_sugerida": "N2 - Phoenix", "criticidade_sugerida": "Alto", "confianca": 0.82},
+  "id_sugestao": "3f2a9c...",
   "mensagem_para_cliente": "Já tivemos um caso parecido. Antes de abrir, tente...",
-  "dicas": ["Verifique se ... (ref. chamado 14547)"],
-  "resumo_para_n1": "...",
+  "dicas": ["Verifique se ..."],
+  "resumo_para_n1": "Precedente no chamado 14547, resolvido com ...",
   "informacoes_faltantes": ["Qual o nome do processo/etapa?", "Tem print do erro?"],
   "recomendacao": "abrir_chamado | tentar_dica_antes | possivel_duplicado",
   "justificativa": "...",
@@ -215,6 +218,19 @@ Resposta (resumida):
 ```
 
 **`mensagem_para_cliente` é o campo pensado para o processo Lecom**: texto curto, escrito direto para quem está abrindo o chamado, pronto para exibir na tela antes da conclusão. Nunca volta vazio; quando não há precedente, ele diz que pode seguir com a abertura.
+
+**Números de chamado são internos.** `mensagem_para_cliente` e `dicas` nunca citam nº de chamado, processo ou protocolo: o prompt proíbe e, por garantia, um filtro remove qualquer número que escape antes de a resposta sair (o WhatsApp usa a mesma saída). As referências continuam disponíveis para o time em `resumo_para_n1`, `justificativa` e `chamados_similares` — campos que **não** devem ser exibidos ao cliente.
+
+### Feedback: a resposta foi útil?
+
+Depois de exibir a mensagem, a integração devolve o `id_sugestao` com a avaliação do cliente:
+
+```json
+POST /feedback
+{"id_sugestao": "3f2a9c...", "util": false, "comentario": "a dica não se aplicava"}
+```
+
+Só quem gerou a sugestão (ou um admin) pode avaliá-la; um id desconhecido ou de outro usuário devolve `404`. Reenviar substitui a avaliação anterior. `GET /feedback/relatorio` (admin) mostra a taxa de utilidade por recomendação e as últimas avaliações negativas com os chamados que embasaram a resposta.
 
 Erros: `401` sem credencial, `403` sem permissão, `409` índice vazio, `413` corpo grande demais, `422` campo inválido, `429` limite atingido, `502` falha no modelo, `503` chave da OpenAI ausente.
 

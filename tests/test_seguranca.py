@@ -59,7 +59,8 @@ def test_health_e_publico(client):
 
 
 @pytest.mark.parametrize("metodo,rota", [
-    ("get", "/stats"), ("post", "/sugerir"), ("post", "/ingest"),
+    ("get", "/stats"), ("post", "/sugerir"), ("post", "/ingest"), ("post", "/feedback"),
+    ("get", "/feedback/relatorio"),
     ("get", "/auth/me"), ("get", "/usuarios"),
 ])
 def test_rotas_exigem_credencial(client, metodo, rota):
@@ -201,6 +202,54 @@ def test_api_key_tambem_passa_pelo_rate_limit(client, token_admin, monkeypatch):
     codigos = [client.post("/sugerir", json={"assunto": "chamado via integracao"},
                            headers={"X-API-Key": chave}).status_code for _ in range(4)]
     assert codigos == [200, 200, 429, 429], codigos
+
+
+# --- feedback -------------------------------------------------------------
+
+def test_feedback_da_sugestao(client, token_admin, monkeypatch):
+    from app.rate_limit import rate_limiter
+
+    rate_limiter.limpar()
+    _dubles(monkeypatch)
+    # o dublê devolve sempre o mesmo objeto: cada chamada precisa de um id próprio
+    from uuid import uuid4
+
+    from app.rag import router as rag_router
+    base = rag_router.sugerir(None)
+    monkeypatch.setattr(rag_router, "sugerir",
+                        lambda req: base.model_copy(update={"id_sugestao": uuid4().hex}))
+
+    client.post("/usuarios", json={"username": "fb_lecom", "password": "senha-forte-123456",
+                                   "rate_limit_per_hour": 50}, headers=auth(token_admin))
+    t = client.post("/auth/login", json={"username": "fb_lecom",
+                                         "password": "senha-forte-123456"}).json()["access_token"]
+
+    id_ = client.post("/sugerir", json={"assunto": "erro no anexo"}, headers=auth(t)).json()["id_sugestao"]
+    assert id_
+
+    assert client.post("/feedback", json={"id_sugestao": id_, "util": True}).status_code == 401
+    r = client.post("/feedback", json={"id_sugestao": id_, "util": False,
+                                       "comentario": "a dica não se aplicava"}, headers=auth(t))
+    assert r.status_code == 200 and r.json() == {"id_sugestao": id_, "util": False, "registrado": True}
+
+    # id inexistente e id de outro usuário respondem igual
+    assert client.post("/feedback", json={"id_sugestao": "0" * 32, "util": True},
+                       headers=auth(t)).status_code == 404
+    id_admin = client.post("/sugerir", json={"assunto": "outro"},
+                           headers=auth(token_admin)).json()["id_sugestao"]
+    assert client.post("/feedback", json={"id_sugestao": id_admin, "util": True},
+                       headers=auth(t)).status_code == 404
+
+    assert client.get("/feedback/relatorio", headers=auth(t)).status_code == 403
+    rel = client.get("/feedback/relatorio", headers=auth(token_admin)).json()
+    assert rel["nao_uteis"] >= 1
+    assert any(n["id"] == id_ and n["comentario"] == "a dica não se aplicava"
+               for n in rel["nao_uteis_recentes"])
+
+    # reenviar substitui o feedback anterior
+    client.post("/feedback", json={"id_sugestao": id_, "util": True}, headers=auth(t))
+    rel = client.get("/feedback/relatorio", headers=auth(token_admin)).json()
+    assert all(n["id"] != id_ for n in rel["nao_uteis_recentes"])
 
 
 def test_forca_bruta_no_login_bloqueia_ip(client):
